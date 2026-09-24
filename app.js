@@ -19,7 +19,12 @@
     keyFeatures: '',
     customNotes: '',
     generatedResult: null,
-    history: []
+    history: [],
+    // AI 生成相关
+    apiKey: '',
+    modelId: 'doubao-seedream-4-0-250828',
+    aiResultUrl: null,
+    aiGenerating: false
   };
 
   // ========== DOM 引用 ==========
@@ -33,6 +38,7 @@
     renderSubstyleCards();
     renderPaletteCards();
     updateParamsDisplay();
+    initAISettings();
     console.log('[Vectordelia] 应用初始化完成');
   }
 
@@ -66,7 +72,24 @@
       historyList: $('historyList'),
       clearBtn: $('clearBtn'),
       downloadBtn: $('downloadBtn'),
-      toast: $('toast')
+      toast: $('toast'),
+      // AI 生成相关
+      aiSettingsToggle: $('aiSettingsToggle'),
+      aiSettingsBody: $('aiSettingsBody'),
+      toggleArrow: $('toggleArrow'),
+      apiKeyInput: $('apiKeyInput'),
+      modelIdInput: $('modelIdInput'),
+      rememberKey: $('rememberKey'),
+      toggleKeyVisibility: $('toggleKeyVisibility'),
+      apiKeyStatus: $('apiKeyStatus'),
+      aiGenerateBtn: $('aiGenerateBtn'),
+      aiResultSection: $('aiResultSection'),
+      aiResultImg: $('aiResultImg'),
+      aiResultMeta: $('aiResultMeta'),
+      aiLoadingSection: $('aiLoadingSection'),
+      loaderSubtext: $('loaderSubtext'),
+      downloadAiBtn: $('downloadAiBtn'),
+      regenerateBtn: $('regenerateBtn')
     };
   }
 
@@ -125,6 +148,50 @@
 
     // 下载预览图
     els.downloadBtn.addEventListener('click', downloadStyledPreview);
+
+    // ========== AI 生成相关事件 ==========
+    // 设置面板折叠
+    els.aiSettingsToggle.addEventListener('click', toggleAISettings);
+
+    // API Key 输入
+    els.apiKeyInput.addEventListener('input', (e) => {
+      state.apiKey = e.target.value.trim();
+      updateApiKeyStatus();
+      if (els.rememberKey.checked) {
+        localStorage.setItem('vd_api_key', state.apiKey);
+      }
+    });
+
+    // 模型 ID 输入
+    els.modelIdInput.addEventListener('input', (e) => {
+      state.modelId = e.target.value.trim();
+      localStorage.setItem('vd_model_id', state.modelId);
+    });
+
+    // 记住 Key 开关
+    els.rememberKey.addEventListener('change', (e) => {
+      if (e.target.checked && state.apiKey) {
+        localStorage.setItem('vd_api_key', state.apiKey);
+      } else {
+        localStorage.removeItem('vd_api_key');
+      }
+    });
+
+    // 显示/隐藏 Key
+    els.toggleKeyVisibility.addEventListener('click', () => {
+      const isPassword = els.apiKeyInput.type === 'password';
+      els.apiKeyInput.type = isPassword ? 'text' : 'password';
+      els.toggleKeyVisibility.textContent = isPassword ? '🙈' : '👁';
+    });
+
+    // AI 生成按钮
+    els.aiGenerateBtn.addEventListener('click', generateWithAI);
+
+    // 下载 AI 结果
+    els.downloadAiBtn.addEventListener('click', downloadAIResult);
+
+    // 重新生成
+    els.regenerateBtn.addEventListener('click', generateWithAI);
   }
 
   // ========== 文件处理 ==========
@@ -418,6 +485,230 @@
 
     showToast('提示词生成完成', 'success');
     els.resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ========== AI 设置管理 ==========
+  function initAISettings() {
+    // 从 localStorage 读取
+    const savedKey = localStorage.getItem('vd_api_key');
+    const savedModel = localStorage.getItem('vd_model_id');
+    if (savedKey) {
+      state.apiKey = savedKey;
+      els.apiKeyInput.value = savedKey;
+    }
+    if (savedModel) {
+      state.modelId = savedModel;
+      els.modelIdInput.value = savedModel;
+    }
+    updateApiKeyStatus();
+  }
+
+  function toggleAISettings() {
+    const body = els.aiSettingsBody;
+    const arrow = els.toggleArrow;
+    if (body.style.display === 'none') {
+      body.style.display = 'block';
+      arrow.textContent = '▼';
+    } else {
+      body.style.display = 'none';
+      arrow.textContent = '▶';
+    }
+  }
+
+  function updateApiKeyStatus() {
+    const status = els.apiKeyStatus;
+    if (state.apiKey && state.apiKey.length > 10) {
+      status.textContent = '✓ 已填写';
+      status.className = 'api-key-status ok';
+    } else {
+      status.textContent = '未填写';
+      status.className = 'api-key-status';
+    }
+  }
+
+  // ========== AI 图生图核心 ==========
+  async function generateWithAI() {
+    // 校验
+    if (!state.originalImage) {
+      showToast('请先上传一张图片', 'error');
+      return;
+    }
+    if (!state.apiKey) {
+      showToast('请先在「AI 生成设置」中填写 API Key', 'error');
+      els.aiSettingsBody.style.display = 'block';
+      els.toggleArrow.textContent = '▼';
+      els.aiSettingsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!state.modelId) {
+      showToast('请填写模型 / 推理接入点 ID', 'error');
+      return;
+    }
+    if (state.aiGenerating) {
+      showToast('正在生成中，请稍候...', 'info');
+      return;
+    }
+
+    // 先生成提示词（复用现有逻辑）
+    const compositionStrategy = VectordeliaEngine.getCompositionStrategy(state.analysis, state.selectedSubstyle);
+    const colorStrategy = VectordeliaEngine.getColorStrategy(state.selectedPalette, state.analysis);
+    const densityProfile = VectordeliaEngine.getDensityProfile(state.intensity);
+    const result = VectordeliaEngine.generatePrompt({
+      subjectDescription: state.subjectDescription || '图片中的主体',
+      keyFeatures: state.keyFeatures || '主要特征与姿态',
+      substyleId: state.selectedSubstyle,
+      compositionStrategy,
+      colorStrategy,
+      densityProfile,
+      eraBias: state.eraBias,
+      customNotes: state.customNotes
+    });
+    state.generatedResult = result;
+    els.promptOutput.value = result.prompt;
+    els.negativeOutput.value = result.negativePrompt;
+    els.resultPanel.classList.add('visible');
+
+    // 显示加载状态
+    state.aiGenerating = true;
+    els.aiGenerateBtn.disabled = true;
+    els.aiGenerateBtn.classList.add('loading');
+    els.aiResultSection.style.display = 'none';
+    els.aiLoadingSection.style.display = 'flex';
+    els.resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // 轮播加载提示
+    const loadingMessages = [
+      '分析图片 · 构建 Vectordelia 视觉系统',
+      '提取主体特征 · 规划扁平矢量化方案',
+      '生成高饱和色彩方案 · 布置迷幻曲线',
+      'AI 正在创作中 · 请稍候',
+      '即将完成 · 正在渲染最终画面'
+    ];
+    let msgIdx = 0;
+    const loadingTimer = setInterval(() => {
+      msgIdx = (msgIdx + 1) % loadingMessages.length;
+      if (els.loaderSubtext) els.loaderSubtext.textContent = loadingMessages[msgIdx];
+    }, 3500);
+
+    try {
+      // 准备图片 base64（压缩到合理大小，避免请求体过大）
+      const imageBase64 = await prepareImageForAPI(state.originalImage);
+
+      // 构建请求体 - 兼容 OpenAI 格式 + 火山引擎扩展参数
+      const requestBody = {
+        model: state.modelId,
+        prompt: result.prompt,
+        response_format: 'url',
+        watermark: false,
+        output_format: 'png',
+        size: '1K',
+        image: [imageBase64]
+      };
+
+      console.log('[AI] 调用火山引擎 Seedream API，模型:', state.modelId);
+      console.log('[AI] 提示词长度:', result.prompt.length);
+
+      // 发起请求
+      const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.apiKey
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errMsg = data.error?.message || data.message || JSON.stringify(data);
+        throw new Error('API 错误: ' + errMsg);
+      }
+
+      // 解析结果
+      if (data.data && data.data.length > 0) {
+        const imageUrl = data.data[0].url;
+        if (!imageUrl) {
+          throw new Error('API 返回了空图片地址');
+        }
+        state.aiResultUrl = imageUrl;
+        els.aiResultImg.src = imageUrl;
+
+        // 显示元信息
+        const metaParts = [];
+        if (data.created) metaParts.push('生成时间: ' + new Date(data.created * 1000).toLocaleTimeString());
+        metaParts.push('模型: ' + state.modelId);
+        metaParts.push('子风格: ' + VectordeliaEngine.SUBSTYLES[state.selectedSubstyle].nameCn);
+        els.aiResultMeta.innerHTML = metaParts.map(m => `<span class="meta-tag">${m}</span>`).join('');
+
+        els.aiResultSection.style.display = 'block';
+        addToHistory(result);
+        showToast('AI 风格化图片生成完成！', 'success');
+      } else {
+        throw new Error('API 返回数据格式异常: ' + JSON.stringify(data).substring(0, 200));
+      }
+
+    } catch (err) {
+      console.error('[AI] 生成失败:', err);
+      let errorMsg = err.message || '生成失败';
+      // 友好化常见错误
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized') || errorMsg.includes('authentication')) {
+        errorMsg = 'API Key 无效或已过期，请检查后重试';
+      } else if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('限流')) {
+        errorMsg = '请求过于频繁，请稍后再试';
+      } else if (errorMsg.includes('model') || errorMsg.includes('Model')) {
+        errorMsg = '模型 ID 不正确或未开通，请在火山方舟确认推理接入点';
+      } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+        errorMsg = '网络连接失败，请检查网络后重试';
+      }
+      showToast('生成失败: ' + errorMsg, 'error');
+      els.aiResultSection.style.display = 'none';
+    } finally {
+      clearInterval(loadingTimer);
+      state.aiGenerating = false;
+      els.aiGenerateBtn.disabled = false;
+      els.aiGenerateBtn.classList.remove('loading');
+      els.aiLoadingSection.style.display = 'none';
+    }
+  }
+
+  // 将图片压缩并转为 base64 data URL，适配 API 要求
+  function prepareImageForAPI(img) {
+    return new Promise((resolve, reject) => {
+      const maxDim = 1536; // 限制最大边长，避免请求体过大
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > maxDim || h > maxDim) {
+        const ratio = Math.min(maxDim / w, maxDim / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      // 用 JPEG 压缩，质量 0.92，控制体积
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      resolve(dataUrl);
+    });
+  }
+
+  // 下载 AI 生成的图片
+  function downloadAIResult() {
+    if (!state.aiResultUrl) {
+      showToast('暂无生成结果', 'error');
+      return;
+    }
+    // 创建一个临时链接下载
+    const link = document.createElement('a');
+    link.href = state.aiResultUrl;
+    link.download = `vectordelia_ai_${Date.now()}.png`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('正在下载 AI 生成图片', 'success');
   }
 
   function addToHistory(result) {

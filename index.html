@@ -53,6 +53,38 @@
       </div>
     </section>
 
+    <!-- ========== AI 生成设置 ========== -->
+    <section class="card ai-settings-section" id="aiSettingsSection">
+      <div class="card-title ai-settings-toggle" id="aiSettingsToggle">
+        <span class="icon">🔑</span> AI 生成设置（火山引擎 Seedream）
+        <span class="toggle-arrow" id="toggleArrow">▼</span>
+      </div>
+      <div class="ai-settings-body" id="aiSettingsBody">
+        <div class="ai-settings-hint">
+          接入火山引擎 Seedream 图生图 API，上传图片后可一键生成真正的 Vectordelia 风格化作品。
+          <a href="https://ark.volcengine.com/region:cn-beijing/apikey" target="_blank" rel="noopener">获取 API Key →</a>
+        </div>
+        <div class="text-input-group">
+          <label>API Key</label>
+          <div class="api-key-input-wrap">
+            <input type="password" id="apiKeyInput" placeholder="输入火山方舟 API Key（sk-... 或 ark-...）">
+            <button class="toggle-visibility-btn" id="toggleKeyVisibility">👁</button>
+          </div>
+        </div>
+        <div class="text-input-group">
+          <label>模型 / 推理接入点 ID</label>
+          <input type="text" id="modelIdInput" placeholder="例如 doubao-seedream-4-0-250828 或 ep-xxxxxxxx" value="doubao-seedream-4-0-250828">
+        </div>
+        <div class="ai-settings-row">
+          <label class="checkbox-label">
+            <input type="checkbox" id="rememberKey" checked>
+            <span>在本设备记住 API Key</span>
+          </label>
+          <span class="api-key-status" id="apiKeyStatus">未填写</span>
+        </div>
+      </div>
+    </section>
+
     <!-- ========== 主控制网格 ========== -->
     <div class="main-grid">
 
@@ -122,7 +154,10 @@
 
     <!-- ========== 生成按钮 ========== -->
     <div class="generate-section">
-      <button class="generate-btn" id="generateBtn">⚡ 生成 Vectordelia 提示词</button>
+      <button class="generate-btn ai-generate-btn" id="aiGenerateBtn">
+        <span class="btn-icon">🪄</span> AI 生成风格化图片
+      </button>
+      <button class="generate-btn secondary-generate" id="generateBtn">⚡ 仅生成提示词</button>
       <div class="action-row">
         <button class="secondary-btn" id="downloadBtn">📥 下载风格预览图</button>
         <button class="secondary-btn" id="clearBtn">🔄 重置全部</button>
@@ -132,6 +167,30 @@
     <!-- ========== 结果面板 ========== -->
     <section class="card result-panel" id="resultPanel">
       <div class="card-title"><span class="icon">✨</span> 生成结果</div>
+
+      <!-- AI 生成结果 -->
+      <div class="ai-result-section" id="aiResultSection" style="display:none;">
+        <div class="ai-result-header">
+          <h4>🪄 AI 风格化作品</h4>
+          <div class="ai-result-actions">
+            <button class="download-ai-btn" id="downloadAiBtn">📥 下载图片</button>
+            <button class="regenerate-btn" id="regenerateBtn">🔄 重新生成</button>
+          </div>
+        </div>
+        <div class="ai-result-image-wrap">
+          <img id="aiResultImg" alt="AI 生成的风格化图片">
+        </div>
+        <div class="ai-result-meta" id="aiResultMeta"></div>
+      </div>
+
+      <!-- AI 加载状态 -->
+      <div class="ai-loading-section" id="aiLoadingSection" style="display:none;">
+        <div class="ai-loader">
+          <div class="loader-ring"></div>
+          <div class="loader-text">AI 正在创作中...</div>
+          <div class="loader-subtext" id="loaderSubtext">分析图片 · 构建 Vectordelia 视觉系统</div>
+        </div>
+      </div>
 
       <div class="result-grid">
         <div class="prompt-box positive">
