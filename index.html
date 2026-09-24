@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vectordelia V2 · 图片风格化工具</title>
+  <meta name="description" content="基于 Vectordelia V2 视觉语言的图片风格化工具，自动分析图片、推荐子风格、生成专业提示词">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- ========== 头部 ========== -->
+    <header class="app-header">
+      <h1>VECTORDELIA V2</h1>
+      <p class="subtitle">Image Style Transformer</p>
+      <span class="version-badge">扁平矢量 · 迷幻曲线 · 有组织极繁</span>
+    </header>
+
+    <!-- ========== 上传区域 ========== -->
+    <section class="card upload-section">
+      <div class="card-title"><span class="icon">📤</span> 上传图片</div>
+
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif">
+        <span class="drop-zone-icon">🎨</span>
+        <p class="drop-zone-text">拖拽图片到这里，或点击选择文件</p>
+        <p class="drop-zone-hint">支持 JPG / PNG / WebP / GIF · 自动分析构图与主色调</p>
+        <button class="upload-btn" id="uploadBtn">选择图片</button>
+      </div>
+
+      <!-- 图片元信息 -->
+      <div class="image-meta" id="imageMeta"></div>
+
+      <!-- 预览对比 -->
+      <div class="preview-compare">
+        <div class="preview-box" id="originalPreview">
+          <span class="preview-label original">原图</span>
+          <img id="originalImg" alt="原图预览" style="display:none;">
+          <div class="preview-placeholder" id="originalPlaceholder">上传后显示原图</div>
+        </div>
+        <div class="preview-box" id="styledPreview">
+          <span class="preview-label styled">风格预览</span>
+          <img id="styledImg" alt="风格化预览" style="display:none;">
+          <div class="preview-placeholder" id="styledPlaceholder">调整参数后实时预览</div>
+        </div>
+      </div>
+
+      <!-- 图片分析 -->
+      <div class="analysis-panel" id="analysisPanel">
+        <div class="analysis-empty">上传图片后显示分析结果</div>
+      </div>
+    </section>
+
+    <!-- ========== 主控制网格 ========== -->
+    <div class="main-grid">
+
+      <!-- 子风格选择 -->
+      <section class="card">
+        <div class="card-title"><span class="icon">🎭</span> 选择子风格（自动推荐）</div>
+        <div class="substyle-grid" id="substyleGrid"></div>
+      </section>
+
+      <!-- 调色板 -->
+      <section class="card">
+        <div class="card-title"><span class="icon">🌈</span> 色彩方案</div>
+        <div class="palette-grid" id="paletteGrid"></div>
+      </section>
+
+      <!-- 参数调节 -->
+      <section class="card">
+        <div class="card-title"><span class="icon">⚙️</span> 风格参数</div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>装饰密度 / 视觉复杂度</span>
+            <span class="value" id="intensityValue">60%</span>
+          </div>
+          <input type="range" id="intensitySlider" min="0" max="100" value="60">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>年代倾向</span>
+          </div>
+          <div class="era-group">
+            <button class="era-btn" data-era="retro">复古 60-70s</button>
+            <button class="era-btn active" data-era="balanced">融合平衡</button>
+            <button class="era-btn" data-era="modern">现代简洁</button>
+            <button class="era-btn" data-era="y2k">2000s 数字</button>
+          </div>
+        </div>
+
+        <!-- 策略标签 -->
+        <div class="strategy-tags" id="strategyTags">
+          <span class="strategy-tag">上传图片后显示策略</span>
+        </div>
+      </section>
+
+      <!-- 主体描述 -->
+      <section class="card">
+        <div class="card-title"><span class="icon">✏️</span> 主体描述（可选）</div>
+
+        <div class="text-input-group">
+          <label>主体是什么？</label>
+          <input type="text" id="subjectInput" placeholder="例如：一位戴墨镜的女性 / 一瓶香水 / 一栋现代建筑">
+        </div>
+
+        <div class="text-input-group">
+          <label>必须保留的关键特征</label>
+          <input type="text" id="featuresInput" placeholder="例如：红色连衣裙、短发、微笑表情">
+        </div>
+
+        <div class="text-input-group">
+          <label>附加说明（可选）</label>
+          <textarea id="notesInput" placeholder="例如：保持原图构图不变，只改变视觉表现 / 更疯狂一点 / 不要文字"></textarea>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ========== 生成按钮 ========== -->
+    <div class="generate-section">
+      <button class="generate-btn" id="generateBtn">⚡ 生成 Vectordelia 提示词</button>
+      <div class="action-row">
+        <button class="secondary-btn" id="downloadBtn">📥 下载风格预览图</button>
+        <button class="secondary-btn" id="clearBtn">🔄 重置全部</button>
+      </div>
+    </div>
+
+    <!-- ========== 结果面板 ========== -->
+    <section class="card result-panel" id="resultPanel">
+      <div class="card-title"><span class="icon">✨</span> 生成结果</div>
+
+      <div class="result-grid">
+        <div class="prompt-box positive">
+          <div class="prompt-header">
+            <h4>✦ 正面提示词（Positive Prompt）</h4>
+            <button class="copy-btn" id="copyPromptBtn">复制</button>
+          </div>
+          <textarea id="promptOutput" readonly></textarea>
+        </div>
+
+        <div class="prompt-box negative">
+          <div class="prompt-header">
+            <h4>✦ 负面提示词（Negative Prompt）</h4>
+            <button class="copy-btn" id="copyNegativeBtn">复制</button>
+          </div>
+          <textarea id="negativeOutput" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="copy-all-row">
+        <button class="copy-all-btn" id="copyAllBtn">📋 一键复制正面 + 负面提示词</button>
+      </div>
+    </section>
+
+    <!-- ========== 历史记录 ========== -->
+    <section class="card history-section">
+      <div class="card-title"><span class="icon">📜</span> 生成历史</div>
+      <div class="history-list" id="historyList">
+        <div class="history-empty">暂无生成记录</div>
+      </div>
+    </section>
+
+    <!-- ========== 页脚 ========== -->
+    <footer class="app-footer">
+      <p>Vectordelia V2 Image Style Transformer</p>
+      <p class="footer-note">基于 Vectordelia V2 视觉语言规则引擎 · 扁平矢量 + 迷幻曲线 + 高饱和 + 有组织极繁</p>
+    </footer>
+
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 脚本 -->
+  <script src="vectordelia-engine.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
